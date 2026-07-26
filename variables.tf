@@ -184,6 +184,29 @@ variable "kms_deletion_window_days" {
   }
 }
 
+variable "notification_topic_arn" {
+  description = "SNS topic in the primary region for vault events. Null disables notifications."
+  type        = string
+  default     = null
+}
+
+variable "replica_notification_topic_arn" {
+  description = "SNS topic in the replica region. Topics are regional, so this cannot reuse the primary one."
+  type        = string
+  default     = null
+}
+
+variable "notification_events" {
+  description = "Vault events published to the topics. Defaults to the failure and expiry events."
+  type        = list(string)
+  default = [
+    "BACKUP_JOB_FAILED",
+    "COPY_JOB_FAILED",
+    "RESTORE_JOB_FAILED",
+    "RECOVERY_POINT_MODIFIED",
+  ]
+}
+
 variable "tags" {
   description = "Tags applied to every resource this module creates."
   type        = map(string)

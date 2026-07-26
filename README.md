@@ -31,6 +31,8 @@ Provider setup and a worked configuration are in [`examples/complete`](examples/
 
 **S3 needs its own IAM policies.** `AWSBackupServiceRolePolicyForBackup` does not cover it. A correctly tagged bucket is skipped until `AWSBackupServiceRolePolicyForS3Backup` is attached. The module attaches it whenever S3 is in `opt_in_resource_types`.
 
+**Nobody notices a failing plan.** A backup plan reports nothing when jobs fail, so set `notification_topic_arn` and subscribe the on-call rotation. The default event list is the failure set plus `RECOVERY_POINT_MODIFIED`. Topics are regional, so the replica region needs its own.
+
 **Cold storage has a 90 day floor.** AWS rejects any lifecycle where `delete_after` is below `cold_storage_after + 90`. The module checks this at plan time on the rule and on both copies, so it fails in seconds rather than at the first scheduled run.
 
 ## Vault Lock
@@ -56,6 +58,9 @@ In the AWS API, passing `changeable_for_days` is what selects compliance mode, s
 | `vault_lock` | `object` | governance, 7 to 3650 days | See above |
 | `opt_in_resource_types` | `map(bool)` | ten common types | |
 | `manage_region_settings` | `bool` | `false` | One configuration per account |
+| `notification_topic_arn` | `string` | `null` | SNS topic for vault events in the primary region |
+| `replica_notification_topic_arn` | `string` | `null` | Separate topic, because SNS topics are regional |
+| `notification_events` | `list(string)` | failure events | Which vault events are published |
 | `kms_deletion_window_days` | `number` | `30` | |
 | `tags` | `map(string)` | `{}` | |
 
