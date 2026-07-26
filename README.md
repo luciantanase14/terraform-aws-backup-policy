@@ -1,0 +1,117 @@
+# terraform-aws-backup-policy
+
+Tag-driven AWS Backup policy with cross-region and cross-account copies, a customer managed key per vault, and Vault Lock.
+
+One module call gives an account a backup plan, three vaults, the IAM role to run jobs, and the vault policy that lets the workload account copy into the backup account without being able to read or delete anything there.
+
+```mermaid
+flowchart LR
+  subgraph workload["Workload account"]
+    tagged["Resources tagged<br/>ToBackup + Owner"] --> plan["Backup plan"]
+    plan --> v1[("Primary vault<br/>region A")]
+  end
+
+  subgraph backup["Backup account"]
+    v3[("Vault, region A")]
+  end
+
+  v2[("Replica vault<br/>region B")]
+
+  v1 -->|own retention and key| v2
+  v1 -->|own retention and key| v3
+```
+
+Separate keys are not decoration. KMS keys are regional, so a copy into region B has to be re-encrypted under a region B key, and a copy into another account has to use a key that account controls.
+
+## Usage
+
+```hcl
+module "backup" {
+  source = "github.com/luciantanase14/terraform-aws-backup-policy"
+
+  providers = {
+    aws.primary       = aws.primary
+    aws.replica       = aws.replica
+    aws.vault_account = aws.vault_account
+  }
+
+  name              = "prod-platform"
+  source_account_id = "111111111111"
+  vault_account_id  = "222222222222"
+
+  selection_tags  = { ToBackup = "true" }
+  owner_tag_value = "platform-team@example.com"
+
+  rules = [
+    {
+      name         = "daily"
+      schedule     = "cron(0 2 * * ? *)"
+      delete_after = 35
+
+      copy_to_replica       = { delete_after = 35 }
+      copy_to_vault_account = { delete_after = 90 }
+    },
+  ]
+
+  vault_lock = {
+    mode               = "governance"
+    min_retention_days = 7
+  }
+}
+```
+
+Full provider setup, including assuming a role into the backup account, is in [`examples/complete`](examples/complete).
+
+## Things that silently break AWS Backup
+
+Most of the module's length comes from these three.
+
+**Resource types are opt-in per account and per region.** Several are opt-out by default, and a tag selection skips anything not opted in without raising an error. The plan looks healthy and protects nothing. Set `manage_region_settings = true` in exactly one configuration per account.
+
+**S3 needs its own IAM policies.** `AWSBackupServiceRolePolicyForBackup` does not cover it. A correctly tagged bucket is skipped until `AWSBackupServiceRolePolicyForS3Backup` is attached. The module attaches it whenever S3 is in `opt_in_resource_types`.
+
+**Cold storage has a 90 day floor.** AWS rejects any lifecycle where `delete_after` is below `cold_storage_after + 90`. The module checks this at plan time on the rule and on both copies, so it fails in seconds rather than at the first scheduled run.
+
+## Vault Lock
+
+Governance is the default. It blocks deletion by ordinary principals and stays removable by someone holding `backup:DeleteBackupVaultLockConfiguration`.
+
+Compliance mode is worth understanding before enabling it. Once `changeable_for_days` elapses the lock cannot be removed by you, your root user, or AWS support, retention cannot be shortened, and the vault cannot be deleted while it holds recovery points. `terraform destroy` fails permanently and storage keeps billing until retention completes.
+
+That immutability is the whole point for a regulated workload, and it is also why it is not the default. The first person to run this in a test account cannot undo it, so the choice belongs in the environment configuration rather than in the module. The tradeoff is real: a governance lock can be removed by a sufficiently privileged attacker, and anything that must survive that needs compliance mode.
+
+In the AWS API, passing `changeable_for_days` is what selects compliance mode. Governance requires omitting it, which is why the module maps a readable `mode` onto that behaviour.
+
+## Inputs
+
+| Name | Type | Default | Notes |
+|---|---|---|---|
+| `name` | `string` | required | Base name for vaults, plan, aliases, role |
+| `source_account_id` | `string` | required | Runs the backup jobs |
+| `vault_account_id` | `string` | required | Receives cross-account copies |
+| `rules` | `list(object)` | required | Schedule, retention, copy behaviour |
+| `selection_tags` | `map(string)` | `{ ToBackup = "true" }` | ANDed, not ORed |
+| `owner_tag_value` | `string` | `null` | Value required on the `Owner` tag |
+| `vault_lock` | `object` | governance, 7 to 3650 days | See above |
+| `opt_in_resource_types` | `map(bool)` | ten common types | |
+| `manage_region_settings` | `bool` | `false` | One configuration per account |
+| `kms_deletion_window_days` | `number` | `30` | |
+| `tags` | `map(string)` | `{}` | |
+
+## Outputs
+
+`plan_id`, `plan_arn`, `vault_arns`, `kms_key_arns`, `backup_role_arn`, `selection_tags`, `vault_lock`.
+
+`vault_lock` reports the effective mode and whether the lock is still reversible, which is the awkward question during an audit.
+
+## Requirements
+
+Terraform >= 1.5, AWS provider >= 5.40, and three configured aliases: `aws.primary`, `aws.replica`, `aws.vault_account`.
+
+```
+cd examples/complete
+terraform init -backend=false
+terraform validate
+```
+
+The input guards have negative tests behind them: a lifecycle under the cold storage floor, a compliance lock with less than 3 days grace, and duplicate rule names are all rejected before anything reaches AWS.

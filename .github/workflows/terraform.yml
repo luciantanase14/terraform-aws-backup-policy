@@ -1,0 +1,27 @@
+name: terraform
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.6
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive -diff
+
+      # The module declares configuration_aliases, so it cannot be validated on
+      # its own. The example is the root module that supplies the providers.
+      - name: Validate example
+        working-directory: examples/complete
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
