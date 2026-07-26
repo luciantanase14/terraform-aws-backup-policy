@@ -78,6 +78,9 @@ Terraform >= 1.5, AWS provider >= 5.40, and three configured aliases: `aws.prima
 cd examples/complete
 terraform init -backend=false
 terraform validate
+python ../../tools/check_diagram.py
 ```
+
+The last one fails if the module gains a resource the README stops mentioning.
 
 The input guards have negative tests behind them: a lifecycle under the cold storage floor, a compliance lock with less than 3 days grace, and duplicate rule names are all rejected before anything reaches AWS.
