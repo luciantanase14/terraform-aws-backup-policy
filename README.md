@@ -21,50 +21,11 @@ flowchart LR
   v1 -->|own retention and key| v3
 ```
 
-Separate keys are not decoration. KMS keys are regional, so a copy into region B has to be re-encrypted under a region B key, and a copy into another account has to use a key that account controls.
+Separate keys are not decoration. KMS keys are regional, so a copy into region B is re-encrypted under a region B key, and a copy into another account uses a key that account controls.
 
-## Usage
-
-```hcl
-module "backup" {
-  source = "github.com/luciantanase14/terraform-aws-backup-policy"
-
-  providers = {
-    aws.primary       = aws.primary
-    aws.replica       = aws.replica
-    aws.vault_account = aws.vault_account
-  }
-
-  name              = "prod-platform"
-  source_account_id = "111111111111"
-  vault_account_id  = "222222222222"
-
-  selection_tags  = { ToBackup = "true" }
-  owner_tag_value = "platform-team@example.com"
-
-  rules = [
-    {
-      name         = "daily"
-      schedule     = "cron(0 2 * * ? *)"
-      delete_after = 35
-
-      copy_to_replica       = { delete_after = 35 }
-      copy_to_vault_account = { delete_after = 90 }
-    },
-  ]
-
-  vault_lock = {
-    mode               = "governance"
-    min_retention_days = 7
-  }
-}
-```
-
-Full provider setup, including assuming a role into the backup account, is in [`examples/complete`](examples/complete).
+Provider setup and a worked configuration are in [`examples/complete`](examples/complete).
 
 ## Things that silently break AWS Backup
-
-Most of the module's length comes from these three.
 
 **Resource types are opt-in per account and per region.** Several are opt-out by default, and a tag selection skips anything not opted in without raising an error. The plan looks healthy and protects nothing. Set `manage_region_settings = true` in exactly one configuration per account.
 
@@ -78,9 +39,9 @@ Governance is the default. It blocks deletion by ordinary principals and stays r
 
 Compliance mode is worth understanding before enabling it. Once `changeable_for_days` elapses the lock cannot be removed by you, your root user, or AWS support, retention cannot be shortened, and the vault cannot be deleted while it holds recovery points. `terraform destroy` fails permanently and storage keeps billing until retention completes.
 
-That immutability is the whole point for a regulated workload, and it is also why it is not the default. The first person to run this in a test account cannot undo it, so the choice belongs in the environment configuration rather than in the module. The tradeoff is real: a governance lock can be removed by a sufficiently privileged attacker, and anything that must survive that needs compliance mode.
+That immutability is the point for a regulated workload and the reason it is not the default: the first person to run this in a test account cannot undo it, so the choice belongs in the environment configuration. The tradeoff is that a governance lock can be removed by a sufficiently privileged attacker, and anything that must survive that needs compliance mode.
 
-In the AWS API, passing `changeable_for_days` is what selects compliance mode. Governance requires omitting it, which is why the module maps a readable `mode` onto that behaviour.
+In the AWS API, passing `changeable_for_days` is what selects compliance mode, so the module maps a readable `mode` onto that.
 
 ## Inputs
 
