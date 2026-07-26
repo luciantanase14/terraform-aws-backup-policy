@@ -18,8 +18,6 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive -diff
 
-      # The module declares configuration_aliases, so it cannot be validated on
-      # its own. The example is the root module that supplies the providers.
       - name: Validate example
         working-directory: examples/complete
         run: |

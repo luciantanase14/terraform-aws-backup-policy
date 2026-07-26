@@ -74,9 +74,7 @@ variable "rules" {
     }))
   }))
 
-  # Cold storage bills for a 90 day minimum, so AWS rejects any lifecycle where
-  # delete_after is under cold_storage_after + 90. A validation condition
-  # evaluates both sides of ||, so the null guards use arithmetic instead.
+  # Cold storage floor is 90 days. Validation evaluates both sides of ||, so these guard by arithmetic.
   validation {
     condition = alltrue([
       for r in var.rules :

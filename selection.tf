@@ -1,5 +1,4 @@
-# AWS Backup ANDs multiple selection_tag blocks: a resource must carry all of
-# them, not any of them.
+# AWS Backup ANDs selection_tag blocks: a resource must carry all of them.
 locals {
   effective_selection_tags = merge(
     var.selection_tags,

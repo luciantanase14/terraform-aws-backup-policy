@@ -31,8 +31,7 @@ resource "aws_iam_role_policy_attachment" "restore" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
 }
 
-# S3 is not covered by the two managed policies above. Without these a tagged
-# bucket is skipped silently.
+# The managed policies above do not cover S3; a tagged bucket is skipped without these.
 resource "aws_iam_role_policy_attachment" "s3_backup" {
   provider = aws.primary
   count    = lookup(var.opt_in_resource_types, "S3", false) ? 1 : 0

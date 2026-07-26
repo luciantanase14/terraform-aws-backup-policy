@@ -43,8 +43,7 @@ resource "aws_backup_vault_policy" "vault_account" {
   policy            = data.aws_iam_policy_document.vault_account_access.json
 }
 
-# Passing changeable_for_days is what selects compliance mode. Governance mode
-# requires leaving it null.
+# changeable_for_days selects compliance mode; omit it for governance.
 locals {
   compliance_mode     = var.vault_lock.mode == "compliance"
   changeable_for_days = local.compliance_mode ? var.vault_lock.changeable_for_days : null
