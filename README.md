@@ -35,6 +35,18 @@ Provider setup and a worked configuration are in [`examples/complete`](examples/
 
 **Cold storage has a 90 day floor.** AWS rejects any lifecycle where `delete_after` is below `cold_storage_after + 90`. The module checks this at plan time on the rule and on both copies, so it fails in seconds rather than at the first scheduled run.
 
+## What it costs
+
+Worth saying out loud before anyone approves it. Each copy is a full independent copy, so the storage bill is roughly:
+
+```
+primary + cross-region + cross-account  =  about 3x one region of backup storage
+```
+
+Cross-region copies also pay inter-region transfer on every run, which is the part people forget when they set a daily schedule on a large dataset. Cold storage is cheaper per GB but bills a 90 day minimum, so short retentions are cheaper in warm storage than in cold.
+
+Vault Lock has no charge of its own and removes the usual lever: with compliance mode you cannot delete recovery points to cut spend, so retention has to be right before it locks.
+
 ## Vault Lock
 
 Governance is the default. It blocks deletion by ordinary principals and stays removable by someone holding `backup:DeleteBackupVaultLockConfiguration`.

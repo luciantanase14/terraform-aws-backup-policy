@@ -1,4 +1,4 @@
-# A plan with no failure alerting looks healthy while jobs have been failing for weeks.
+# a plan with no alerting looks healthy while jobs have failed for weeks
 resource "aws_backup_vault_notifications" "primary" {
   provider = aws.primary
   count    = var.notification_topic_arn == null ? 0 : 1

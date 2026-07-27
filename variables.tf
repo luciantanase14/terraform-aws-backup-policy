@@ -74,7 +74,7 @@ variable "rules" {
     }))
   }))
 
-  # Cold storage floor is 90 days. Validation evaluates both sides of ||, so these guard by arithmetic.
+  # cold storage floor is 90 days. || is not short circuited here, hence the arithmetic
   validation {
     condition = alltrue([
       for r in var.rules :
